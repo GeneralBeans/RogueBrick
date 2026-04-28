@@ -1,0 +1,50 @@
+[
+  {
+    "id": "plain",
+    "name": "Clay",
+    "color": "#c27b5e",
+    "maxHp": 1,
+    "tags": ["Basic"],
+    "effects": []
+  },
+  {
+    "id": "stone",
+    "name": "Stone",
+    "color": "#8a8f98",
+    "maxHp": 3,
+    "tags": ["Tank"],
+    "effects": []
+  },
+  {
+    "id": "volatile",
+    "name": "Volatile",
+    "color": "#ff6b4a",
+    "maxHp": 1,
+    "tags": ["Explosive"],
+    "effects": [{ "kind": "explodeOnDestroy", "radiusPx": 52, "damage": 2 }]
+  },
+  {
+    "id": "charger",
+    "name": "Charger",
+    "color": "#6cf0ff",
+    "maxHp": 2,
+    "tags": ["Conductive"],
+    "effects": [{ "kind": "onHitSpeedBoost", "add": 0.06, "cap": 1.65 }]
+  },
+  {
+    "id": "gilded",
+    "name": "Gilded",
+    "color": "#f3d24a",
+    "maxHp": 1,
+    "tags": ["Gold"],
+    "effects": [{ "kind": "goldOnDestroy", "amount": 4 }]
+  },
+  {
+    "id": "symbiotic",
+    "name": "Symbiotic",
+    "color": "#9b7bff",
+    "maxHp": 2,
+    "tags": ["Support"],
+    "effects": [{ "kind": "healNeighborsOnDestroy", "amount": 1 }]
+  }
+]
