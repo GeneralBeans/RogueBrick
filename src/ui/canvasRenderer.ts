@@ -3,6 +3,7 @@ import { shakeOffset } from "../physics/gameFeel";
 import type { PlaySession } from "../physics/playTypes";
 import {
   BALL_R,
+  BASE_BALL_SPEED,
   CANVAS_H,
   CANVAS_W,
   CELL,
@@ -88,10 +89,31 @@ export function drawPlay(ctx: CanvasRenderingContext2D, session: PlaySession, de
   ctx.fillStyle = "#d7dbe6";
   ctx.fillRect(px - PADDLE_W / 2, py, PADDLE_W, 14);
 
+  for (let i = session.trail.length - 1; i >= 0; i--) {
+    const t = session.trail[i]!;
+    const alpha = 0.05 + t.life * 0.18;
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.arc(t.x, t.y, BALL_R * (0.45 + t.life * 0.45), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const speed = Math.hypot(session.vel.x, session.vel.y);
+  const speedNorm = Math.min(1.35, speed / BASE_BALL_SPEED);
+  const stretchAmt = Math.min(0.72, 0.12 * speedNorm + 0.34 * session.ballImpactPulse);
+  const sx = 1 + stretchAmt;
+  const sy = Math.max(0.58, 1 - stretchAmt * 0.72);
+  const angle = Math.atan2(session.vel.y, session.vel.x);
+
+  ctx.save();
+  ctx.translate(session.ball.x, session.ball.y);
+  ctx.rotate(angle);
+  ctx.scale(sx, sy);
   ctx.beginPath();
   ctx.fillStyle = "#ffffff";
-  ctx.arc(session.ball.x, session.ball.y, BALL_R, 0, Math.PI * 2);
+  ctx.arc(0, 0, BALL_R, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 
   ctx.fillStyle = "#9aa3ad";
   ctx.font = "13px system-ui";

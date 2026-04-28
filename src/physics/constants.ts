@@ -14,6 +14,8 @@ export const PADDLE_H = 14;
 
 export const BALL_R = 8;
 export const BASE_BALL_SPEED = 320;
+/** Mild downward pull so trajectories feel heavier than perfect linear travel. */
+export const BALL_GRAVITY = 58;
 
 export const FIXED_DT = 1 / 120;
 export const MAX_PHYS_STEPS = 10;

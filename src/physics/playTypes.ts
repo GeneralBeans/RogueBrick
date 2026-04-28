@@ -6,6 +6,7 @@ export type PlayCallbacks = {
 
 /** Spring state for brick juicing (visual only; collision still uses the grid). */
 export type BrickFeel = { ox: number; oy: number; vx: number; vy: number };
+export type BallTrailPoint = { x: number; y: number; life: number };
 
 export type PlaySession = {
   bricks: BrickInstance[];
@@ -19,4 +20,8 @@ export type PlaySession = {
   screenShake: number;
   /** Runtime juicing; entries disappear when bricks are GC'd. */
   brickFeel: WeakMap<BrickInstance, BrickFeel>;
+  /** Render-only trail samples for motion readability. */
+  trail: BallTrailPoint[];
+  /** Short-lived impact pulse used for ball squash/stretch. */
+  ballImpactPulse: number;
 };

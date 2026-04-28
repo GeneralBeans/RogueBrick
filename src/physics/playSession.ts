@@ -1,6 +1,7 @@
 import type { BrickDef, BrickInstance } from "../bricks/types";
 import { handleBrickHit } from "../bricks/resolver";
 import {
+  BALL_GRAVITY,
   BALL_R,
   BASE_BALL_SPEED,
   CANVAS_H,
@@ -73,6 +74,8 @@ export function createPlaySession(layout: (string | null)[][], defs: Map<string,
     launchTimer: 0.35,
     screenShake: 0,
     brickFeel: new WeakMap(),
+    trail: [],
+    ballImpactPulse: 0,
   };
 }
 
@@ -81,6 +84,8 @@ export function respawnBallKeepBricks(session: PlaySession): void {
   session.ballSpeedMul = 1;
   session.screenShake = 0;
   session.brickFeel = new WeakMap();
+  session.trail.length = 0;
+  session.ballImpactPulse = 0;
   session.vel.x = 0;
   session.vel.y = 0;
   session.ballLaunched = false;
@@ -102,6 +107,35 @@ export function launchBall(session: PlaySession, aimX: number): void {
   applyLaunchFeel(session);
 }
 
+function enforceVelocityProfile(session: PlaySession): void {
+  const targetSpeed = BASE_BALL_SPEED * session.ballSpeedMul;
+  const speed = Math.hypot(session.vel.x, session.vel.y);
+  if (speed < 1e-6) return;
+
+  const scale = targetSpeed / speed;
+  session.vel.x *= scale;
+  session.vel.y *= scale;
+
+  // Avoid near-horizontal "float" trajectories; keep cadence snappy.
+  const minVy = targetSpeed * 0.24;
+  if (Math.abs(session.vel.y) < minVy) {
+    session.vel.y = (session.vel.y >= 0 ? 1 : -1) * minVy;
+    const vxAbs = Math.sqrt(Math.max(0, targetSpeed * targetSpeed - session.vel.y * session.vel.y));
+    session.vel.x = (session.vel.x >= 0 ? 1 : -1) * vxAbs;
+  }
+}
+
+function updateBallTrail(session: PlaySession, dt: number): void {
+  for (let i = session.trail.length - 1; i >= 0; i--) {
+    const t = session.trail[i]!;
+    t.life -= dt * 2.6;
+    if (t.life <= 0) session.trail.splice(i, 1);
+  }
+  session.trail.unshift({ x: session.ball.x, y: session.ball.y, life: 1 });
+  if (session.trail.length > 18) session.trail.length = 18;
+  session.ballImpactPulse *= Math.exp(-14 * dt);
+}
+
 function paddleReflect(session: PlaySession): void {
   const px = session.paddleX;
   const py = PADDLE_Y;
@@ -120,6 +154,7 @@ function paddleReflect(session: PlaySession): void {
   session.vel.x = Math.sin(angle) * s;
   session.vel.y = -Math.cos(angle) * s;
   applyPaddleFeel(session, session.vel.x, session.vel.y);
+  session.ballImpactPulse = Math.min(1, session.ballImpactPulse + 0.46);
 }
 
 export function updatePlay(
@@ -145,6 +180,7 @@ export function updatePlay(
 
   session.paddleX = pointerX ?? session.paddleX;
 
+  vel.y += BALL_GRAVITY * dt;
   ball.x += vel.x * dt;
   ball.y += vel.y * dt;
 
@@ -152,15 +188,18 @@ export function updatePlay(
     ball.x = BALL_R;
     vel.x *= -1;
     applyWallFeel(session, vel.x, vel.y);
+    session.ballImpactPulse = Math.min(1, session.ballImpactPulse + 0.24);
   } else if (ball.x > CANVAS_W - BALL_R) {
     ball.x = CANVAS_W - BALL_R;
     vel.x *= -1;
     applyWallFeel(session, vel.x, vel.y);
+    session.ballImpactPulse = Math.min(1, session.ballImpactPulse + 0.24);
   }
   if (ball.y < BALL_R) {
     ball.y = BALL_R;
     vel.y *= -1;
     applyWallFeel(session, vel.x, vel.y);
+    session.ballImpactPulse = Math.min(1, session.ballImpactPulse + 0.24);
   }
 
   paddleReflect(session);
@@ -177,10 +216,13 @@ export function updatePlay(
     else vel.y *= -1;
 
     applyBrickHitFeel(session, brick, ball.x, ball.y, vel.x, vel.y);
+    session.ballImpactPulse = Math.min(1, session.ballImpactPulse + 0.58);
     handleBrickHit(brick, session, session.bricks, defs, callbacks, BASE_BALL_SPEED);
     break;
   }
 
+  enforceVelocityProfile(session);
+  updateBallTrail(session, dt);
   updateGameFeel(session, dt);
 
   if (ball.y - BALL_R > CANVAS_H) return "lost";
