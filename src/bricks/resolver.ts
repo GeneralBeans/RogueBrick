@@ -98,16 +98,18 @@ export function handleBrickHit(
   defs: Map<string, BrickDef>,
   callbacks: PlayCallbacks,
   baseBallSpeed: number,
+  hitDamage: number,
 ): void {
   const def = getDef(defs, brick.defId);
-  brick.hp -= 1;
+  brick.hp -= hitDamage;
 
   for (const e of def.effects) {
     if (e.kind === "onHitSpeedBoost") {
-      session.ballSpeedMul = Math.min(e.cap, session.ballSpeedMul + e.add);
+      const cap = session.ballSpeedMul >= 2 ? e.cap * 2 : e.cap;
+      session.ballSpeedMul = Math.min(cap, session.ballSpeedMul + e.add);
       const sp = Math.hypot(session.vel.x, session.vel.y);
       if (sp > 1e-6) {
-        const f = (baseBallSpeed * session.ballSpeedMul) / sp;
+        const f = (baseBallSpeed * (session.ballSpeedMul + session.rallySpeedBonus)) / sp;
         session.vel.x *= f;
         session.vel.y *= f;
       }

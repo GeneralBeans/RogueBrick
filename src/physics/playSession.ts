@@ -20,7 +20,7 @@ import {
   applyWallFeel,
   updateGameFeel,
 } from "./gameFeel";
-import type { PlayCallbacks, PlaySession } from "./playTypes";
+import type { PlayCallbacks, PlaySession, RallyPerkDef } from "./playTypes";
 
 export type { PlayCallbacks, PlaySession } from "./playTypes";
 
@@ -58,7 +58,11 @@ export function hydrateBrickHp(bricks: BrickInstance[], defs: Map<string, BrickD
   }
 }
 
-export function createPlaySession(layout: (string | null)[][], defs: Map<string, BrickDef>): PlaySession {
+export function createPlaySession(
+  layout: (string | null)[][],
+  defs: Map<string, BrickDef>,
+  rallyPerkDefs: readonly RallyPerkDef[],
+): PlaySession {
   const bricks = layoutToBricks(layout);
   hydrateBrickHp(bricks, defs);
   const paddleX = CANVAS_W / 2;
@@ -76,12 +80,20 @@ export function createPlaySession(layout: (string | null)[][], defs: Map<string,
     brickFeel: new WeakMap(),
     trail: [],
     ballImpactPulse: 0,
+    rallyCount: 0,
+    maxRallyThisWave: 0,
+    damageMul: 1,
+    rallySpeedBonus: 0,
+    rallyPerks: rallyPerkDefs.map((p) => ({ ...p, triggered: false })),
+    rallyRetainRatio: 0,
   };
 }
 
 /** After losing a life: keep brick damage/layout state, only reset ball + serve. */
 export function respawnBallKeepBricks(session: PlaySession): void {
+  const preservedRally = Math.floor(session.rallyCount * session.rallyRetainRatio);
   session.ballSpeedMul = 2;
+  session.rallyCount = preservedRally;
   session.screenShake = 0;
   session.brickFeel = new WeakMap();
   session.trail.length = 0;
@@ -92,6 +104,39 @@ export function respawnBallKeepBricks(session: PlaySession): void {
   session.launchTimer = 0.35;
   session.ball.x = session.paddleX;
   session.ball.y = PADDLE_Y - BALL_R - 2;
+  recomputeRallyDerived(session);
+}
+
+function onRallyEvent(session: PlaySession): void {
+  session.rallyCount += 1;
+  session.maxRallyThisWave = Math.max(session.maxRallyThisWave, session.rallyCount);
+
+  for (const perk of session.rallyPerks) {
+    if (!perk.triggered && session.rallyCount >= perk.threshold) {
+      perk.triggered = true;
+    }
+  }
+  recomputeRallyDerived(session);
+}
+
+function recomputeRallyDerived(session: PlaySession): void {
+  const baselineBonus = Math.min(0.4, Math.floor(session.rallyCount / 10) * 0.04);
+  let speedBonus = baselineBonus;
+  let damageMul = 1;
+  let retainRatio = 0;
+
+  for (const perk of session.rallyPerks) {
+    if (!perk.triggered) continue;
+    for (const effect of perk.effects) {
+      if (effect.kind === "addSpeedBonus") speedBonus += effect.amount;
+      else if (effect.kind === "setDamageMultiplier") damageMul = Math.max(damageMul, effect.amount);
+      else if (effect.kind === "retainRallyOnLifeLoss") retainRatio = Math.max(retainRatio, effect.ratio);
+    }
+  }
+
+  session.rallySpeedBonus = speedBonus;
+  session.damageMul = damageMul;
+  session.rallyRetainRatio = retainRatio;
 }
 
 export function launchBall(session: PlaySession, aimX: number): void {
@@ -108,7 +153,7 @@ export function launchBall(session: PlaySession, aimX: number): void {
 }
 
 function enforceVelocityProfile(session: PlaySession): void {
-  const targetSpeed = BASE_BALL_SPEED * session.ballSpeedMul;
+  const targetSpeed = BASE_BALL_SPEED * (session.ballSpeedMul + session.rallySpeedBonus);
   const speed = Math.hypot(session.vel.x, session.vel.y);
   if (speed < 1e-6) return;
 
@@ -153,6 +198,7 @@ function paddleReflect(session: PlaySession): void {
   const s = Math.max(sp, BASE_BALL_SPEED * 0.85 * session.ballSpeedMul);
   session.vel.x = Math.sin(angle) * s;
   session.vel.y = -Math.cos(angle) * s;
+  onRallyEvent(session);
   applyPaddleFeel(session, session.vel.x, session.vel.y);
   session.ballImpactPulse = Math.min(1, session.ballImpactPulse + 0.46);
 }
@@ -217,7 +263,16 @@ export function updatePlay(
 
     applyBrickHitFeel(session, brick, ball.x, ball.y, vel.x, vel.y);
     session.ballImpactPulse = Math.min(1, session.ballImpactPulse + 0.58);
-    handleBrickHit(brick, session, session.bricks, defs, callbacks, BASE_BALL_SPEED);
+    onRallyEvent(session);
+    handleBrickHit(
+      brick,
+      session,
+      session.bricks,
+      defs,
+      callbacks,
+      BASE_BALL_SPEED,
+      session.damageMul,
+    );
     break;
   }
 

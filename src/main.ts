@@ -17,6 +17,7 @@ import {
 } from "./physics/playSession";
 import { mulberry32, pickMany } from "./rng";
 import { clearSavedRun, saveRun, tryLoadRun } from "./run/persist";
+import { loadRallyPerks } from "./run/rallyPerks";
 import { applyRowToLayout, refillRowOffers, rowPickBudget, unlockTypesFromRow } from "./run/rowOffers";
 import { countPlaced, createRun, emptyLayout, layoutFromBrickInstances } from "./run/state";
 import type { Phase, RunState } from "./run/types";
@@ -24,6 +25,7 @@ import { drawIdleMessage, drawLayoutPreview, drawPlay } from "./ui/canvasRendere
 import { renderIntermission } from "./ui/intermission";
 
 const { defs: ALL_DEFS, byId: DEF_MAP } = loadBrickCatalog();
+const RALLY_PERKS = loadRallyPerks();
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
@@ -38,6 +40,10 @@ app.innerHTML = `
     <div class="stat"><span>Wave</span><b id="wave">1</b></div>
     <div class="stat"><span>Gold</span><b id="gold">0</b></div>
     <div class="stat"><span>Lives</span><b id="lives">3</b></div>
+    <div class="stat"><span>Rally</span><b id="rally">0</b></div>
+    <div class="stat"><span>Best Rally</span><b id="rallyBest">0</b></div>
+    <div class="stat"><span>Damage</span><b id="dmgMul">x1.0</b></div>
+    <div class="muted" id="rallyPerks">Active perks: none</div>
     <div class="stat"><span>Phase</span><b id="phase">draft</b></div>
     <div id="phaseBody"></div>
     <div class="row" style="margin-top:auto">
@@ -54,6 +60,10 @@ const seedEl = document.querySelector<HTMLSpanElement>("#seed")!;
 const waveEl = document.querySelector<HTMLSpanElement>("#wave")!;
 const goldEl = document.querySelector<HTMLSpanElement>("#gold")!;
 const livesEl = document.querySelector<HTMLSpanElement>("#lives")!;
+const rallyEl = document.querySelector<HTMLSpanElement>("#rally")!;
+const rallyBestEl = document.querySelector<HTMLSpanElement>("#rallyBest")!;
+const dmgMulEl = document.querySelector<HTMLSpanElement>("#dmgMul")!;
+const rallyPerksEl = document.querySelector<HTMLDivElement>("#rallyPerks")!;
 const phaseEl = document.querySelector<HTMLSpanElement>("#phase")!;
 const phaseBody = document.querySelector<HTMLDivElement>("#phaseBody")!;
 
@@ -89,7 +99,7 @@ function hydrateLoadedRun(): void {
     refillRowOffers(state, ALL_DEFS);
   }
   if (state.phase === "play" && countPlaced(state.layout) > 0) {
-    playSession = createPlaySession(state.layout, DEF_MAP);
+    playSession = createPlaySession(state.layout, DEF_MAP, RALLY_PERKS);
   } else {
     playSession = null;
   }
@@ -100,6 +110,12 @@ function renderHud(): void {
   waveEl.textContent = String(state.wave);
   goldEl.textContent = String(state.gold);
   livesEl.textContent = String(state.lives);
+  rallyEl.textContent = String(playSession?.rallyCount ?? 0);
+  rallyBestEl.textContent = String(playSession?.maxRallyThisWave ?? 0);
+  dmgMulEl.textContent = `x${(playSession?.damageMul ?? 1).toFixed(1)}`;
+  const activePerks = playSession?.rallyPerks.filter((p) => p.triggered).map((p) => p.name) ?? [];
+  rallyPerksEl.textContent =
+    activePerks.length > 0 ? `Active perks: ${activePerks.join(", ")}` : "Active perks: none";
   phaseEl.textContent = state.phase;
 }
 
@@ -132,7 +148,7 @@ function pickRowOffer(index: number): void {
 
 function beginPlay(): void {
   if (countPlaced(state.layout) === 0) return;
-  playSession = createPlaySession(state.layout, DEF_MAP);
+  playSession = createPlaySession(state.layout, DEF_MAP, RALLY_PERKS);
   setPhase("play");
   renderAll();
 }
@@ -234,7 +250,12 @@ requestAnimationFrame(function tick(now) {
       onLifeLost();
     }
 
-    if (state.phase === "play" && playSession) drawPlay(ctx, playSession, DEF_MAP);
+    if (state.phase === "play" && playSession) {
+      rallyEl.textContent = String(playSession.rallyCount);
+      rallyBestEl.textContent = String(playSession.maxRallyThisWave);
+      dmgMulEl.textContent = `x${playSession.damageMul.toFixed(1)}`;
+      drawPlay(ctx, playSession, DEF_MAP);
+    }
   } else if (state.phase === "rows") {
     drawLayoutPreview(ctx, state.layout, DEF_MAP, "Row draft — current layout preview");
   } else {

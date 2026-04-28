@@ -1,0 +1,20 @@
+[
+  {
+    "id": "rally-speed-20",
+    "name": "Momentum Engine",
+    "threshold": 20,
+    "effects": [{ "kind": "addSpeedBonus", "amount": 0.2 }]
+  },
+  {
+    "id": "rally-damage-40",
+    "name": "Breakthrough",
+    "threshold": 40,
+    "effects": [{ "kind": "setDamageMultiplier", "amount": 2 }]
+  },
+  {
+    "id": "rally-retain-25",
+    "name": "Banked Heat",
+    "threshold": 25,
+    "effects": [{ "kind": "retainRallyOnLifeLoss", "ratio": 0.5 }]
+  }
+]

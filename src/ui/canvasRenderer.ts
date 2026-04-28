@@ -117,7 +117,7 @@ export function drawPlay(ctx: CanvasRenderingContext2D, session: PlaySession, de
 
   ctx.fillStyle = "#9aa3ad";
   ctx.font = "13px system-ui";
-  ctx.fillText(`Ball speed ×${session.ballSpeedMul.toFixed(2)}`, 16, 28);
+  ctx.fillText(`Ball speed ×${(session.ballSpeedMul + session.rallySpeedBonus).toFixed(2)}`, 16, 28);
 
   ctx.restore();
 }
