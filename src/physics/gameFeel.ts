@@ -1,6 +1,13 @@
 import type { BrickInstance } from "../bricks/types";
-import { CELL, GRID_X, GRID_Y } from "./constants";
+import { BASE_BALL_SPEED, CELL, GRID_X, GRID_Y } from "./constants";
 import type { BrickFeel, PlaySession } from "./playTypes";
+
+/** Shake increment scales with ball speed; extra weight when faster than baseline. */
+function addSpeedScaledShake(session: PlaySession, speed: number, linearGain: number, maxBump: number, ceiling: number): void {
+  const ratio = Math.max(0.35, Math.min(2.4, speed / BASE_BALL_SPEED));
+  const delta = Math.min(maxBump, speed * linearGain * ratio);
+  session.screenShake = Math.min(ceiling, session.screenShake + delta);
+}
 
 const SPRING_K = 420;
 const SPRING_DAMP = 32;
@@ -64,29 +71,29 @@ export function applyBrickHitFeel(
     addImpulse(getBrickFeel(session, b), nx * mag, ny * mag);
   }
 
-  // Screen punch scales with impact but stays readable.
-  session.screenShake = Math.min(19, session.screenShake + Math.min(11, 5.5 + speed * 0.014));
+  addSpeedScaledShake(session, speed, 0.0085, 4.8, 11);
 }
 
 export function applyWallFeel(session: PlaySession, velX: number, velY: number): void {
   const speed = Math.hypot(velX, velY);
-  session.screenShake = Math.min(14, session.screenShake + Math.min(4.2, 2.5 + speed * 0.006));
+  addSpeedScaledShake(session, speed, 0.0019, 1.35, 11);
 }
 
 export function applyPaddleFeel(session: PlaySession, velX: number, velY: number): void {
   const speed = Math.hypot(velX, velY);
-  session.screenShake = Math.min(17, session.screenShake + Math.min(7.5, 4 + speed * 0.01));
+  addSpeedScaledShake(session, speed, 0.0036, 3.1, 11);
 }
 
 export function applyLaunchFeel(session: PlaySession): void {
-  session.screenShake = Math.min(10, session.screenShake + 3.5);
+  const speed = Math.hypot(session.vel.x, session.vel.y);
+  addSpeedScaledShake(session, speed, 0.0026, 2.2, 11);
 }
 
 /**
  * Integrate springs and decay shake. Call once per physics substep with the same `dt`.
  */
 export function updateGameFeel(session: PlaySession, dt: number): void {
-  session.screenShake *= Math.exp(-18 * dt);
+  session.screenShake *= Math.exp(-20 * dt);
 
   for (const brick of session.bricks) {
     const f = session.brickFeel.get(brick);
