@@ -1,3 +1,4 @@
+import type { BrickInstance } from "../bricks/types";
 import type { RunState } from "./types";
 
 export function emptyLayout(rows: number, cols: number): (string | null)[][] {
@@ -22,6 +23,19 @@ export function createRun(seed: number, rows: number, cols: number): RunState {
 
 export function cloneLayout(src: (string | null)[][]): (string | null)[][] {
   return src.map((row) => [...row]);
+}
+
+/** Snapshot grid ids from live bricks (HP is not stored here — gameplay uses `BrickInstance`). */
+export function layoutFromBrickInstances(
+  bricks: readonly BrickInstance[],
+  rows: number,
+  cols: number,
+): (string | null)[][] {
+  const layout = emptyLayout(rows, cols);
+  for (const b of bricks) {
+    layout[b.gy]![b.gx] = b.defId;
+  }
+  return layout;
 }
 
 export function countPlaced(layout: (string | null)[][]): number {

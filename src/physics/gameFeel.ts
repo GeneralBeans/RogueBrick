@@ -9,14 +9,15 @@ function addSpeedScaledShake(session: PlaySession, speed: number, linearGain: nu
   session.screenShake = Math.min(ceiling, session.screenShake + delta);
 }
 
-const SPRING_K = 420;
-const SPRING_DAMP = 32;
-const MAX_OFFSET = 11;
+/** Slightly softer spring = longer, more visible wobble (juice / exaggeration). */
+const SPRING_K = 350;
+const SPRING_DAMP = 27;
+const MAX_OFFSET = 19;
 
 /** Strength of neighbor ripple relative to `baseImpulse` (connectivity wave). */
-const RIPPLE_GAIN = 0.46;
-/** Amplitude multiplier per BFS hop along touching bricks (edge-adjacent). */
-const RIPPLE_PER_HOP = 0.74;
+const RIPPLE_GAIN = 0.82;
+/** Amplitude multiplier per BFS hop (higher → wave carries farther across the mesh). */
+const RIPPLE_PER_HOP = 0.87;
 
 function brickCenterPx(b: BrickInstance) {
   const x = GRID_X + b.gx * CELL + (b.gw * CELL) / 2;
@@ -90,10 +91,10 @@ export function applyBrickHitFeel(
   dirX /= dirLen;
   dirY /= dirLen;
 
-  const baseImpulse = Math.min(520, Math.max(140, speed * 0.11));
+  const baseImpulse = Math.min(620, Math.max(165, speed * 0.125));
 
   // Direct hit — strongest kick along “push away from ball”.
-  addImpulse(getBrickFeel(session, struck), dirX * baseImpulse * 1.45, dirY * baseImpulse * 1.45);
+  addImpulse(getBrickFeel(session, struck), dirX * baseImpulse * 1.58, dirY * baseImpulse * 1.58);
 
   // Ripple through edge-connected bricks only: outward from impact center, weaker each hop.
   const grid = brickOccupancyMap(session.bricks);

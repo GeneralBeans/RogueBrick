@@ -8,11 +8,17 @@ import {
   GRID_ROWS,
   MAX_PHYS_STEPS,
 } from "./physics/constants";
-import { createPlaySession, launchBall, updatePlay, type PlaySession } from "./physics/playSession";
+import {
+  createPlaySession,
+  launchBall,
+  respawnBallKeepBricks,
+  updatePlay,
+  type PlaySession,
+} from "./physics/playSession";
 import { mulberry32, pickMany } from "./rng";
 import { clearSavedRun, saveRun, tryLoadRun } from "./run/persist";
 import { applyRowToLayout, refillRowOffers, rowPickBudget, unlockTypesFromRow } from "./run/rowOffers";
-import { cloneLayout, countPlaced, createRun, emptyLayout } from "./run/state";
+import { countPlaced, createRun, emptyLayout, layoutFromBrickInstances } from "./run/state";
 import type { Phase, RunState } from "./run/types";
 import { drawIdleMessage, drawLayoutPreview, drawPlay } from "./ui/canvasRenderer";
 import { renderIntermission } from "./ui/intermission";
@@ -57,7 +63,6 @@ function freshRun(): RunState {
 
 let state: RunState = tryLoadRun() ?? freshRun();
 let playSession: PlaySession | null = null;
-let waveLayout: (string | null)[][] | null = null;
 let pointerCanvasX: number | null = null;
 let last = performance.now();
 let simAcc = 0;
@@ -127,7 +132,6 @@ function pickRowOffer(index: number): void {
 
 function beginPlay(): void {
   if (countPlaced(state.layout) === 0) return;
-  waveLayout = cloneLayout(state.layout);
   playSession = createPlaySession(state.layout, DEF_MAP);
   setPhase("play");
   renderAll();
@@ -147,7 +151,6 @@ function onWaveCleared(): void {
 
 function onRunGameOver(): void {
   playSession = null;
-  waveLayout = null;
   setPhase("gameover");
   renderAll();
 }
@@ -158,8 +161,9 @@ function onLifeLost(): void {
     onRunGameOver();
     return;
   }
-  if (!waveLayout) return;
-  playSession = createPlaySession(waveLayout, DEF_MAP);
+  if (!playSession) return;
+  respawnBallKeepBricks(playSession);
+  state.layout = layoutFromBrickInstances(playSession.bricks, GRID_ROWS, GRID_COLS);
   renderAll();
 }
 
@@ -186,7 +190,6 @@ document.querySelector<HTMLButtonElement>("#newRun")!.addEventListener("click", 
   clearSavedRun();
   state = freshRun();
   playSession = null;
-  waveLayout = null;
   simAcc = 0;
   refillDraft(state);
   renderAll();
@@ -226,7 +229,6 @@ requestAnimationFrame(function tick(now) {
 
     if (status === "cleared") {
       playSession = null;
-      waveLayout = null;
       onWaveCleared();
     } else if (status === "lost") {
       onLifeLost();
