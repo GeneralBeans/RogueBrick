@@ -69,7 +69,7 @@ export function createPlaySession(layout: (string | null)[][], defs: Map<string,
     ball,
     vel,
     paddleX,
-    ballSpeedMul: 1,
+    ballSpeedMul: 2,
     ballLaunched: false,
     launchTimer: 0.35,
     screenShake: 0,
@@ -81,7 +81,7 @@ export function createPlaySession(layout: (string | null)[][], defs: Map<string,
 
 /** After losing a life: keep brick damage/layout state, only reset ball + serve. */
 export function respawnBallKeepBricks(session: PlaySession): void {
-  session.ballSpeedMul = 1;
+  session.ballSpeedMul = 2;
   session.screenShake = 0;
   session.brickFeel = new WeakMap();
   session.trail.length = 0;
