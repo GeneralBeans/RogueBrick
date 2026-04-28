@@ -1,4 +1,5 @@
 import type { BrickDef } from "../bricks/types";
+import { shakeOffset } from "../physics/gameFeel";
 import type { PlaySession } from "../physics/playTypes";
 import {
   BALL_R,
@@ -47,8 +48,13 @@ export function drawLayoutPreview(
 export function drawPlay(ctx: CanvasRenderingContext2D, session: PlaySession, defMap: Map<string, BrickDef>): void {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
+  const { x: shakeX, y: shakeY } = shakeOffset(session);
+
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
   ctx.fillStyle = "#151a24";
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  ctx.fillRect(-28, -28, CANVAS_W + 56, CANVAS_H + 56);
 
   ctx.strokeStyle = "#2a3140";
   for (let gy = 0; gy < GRID_ROWS; gy++) {
@@ -60,8 +66,11 @@ export function drawPlay(ctx: CanvasRenderingContext2D, session: PlaySession, de
   }
 
   for (const b of session.bricks) {
-    const x = GRID_X + b.gx * CELL + 2;
-    const y = GRID_Y + b.gy * CELL + 2;
+    const feel = session.brickFeel.get(b);
+    const ox = feel?.ox ?? 0;
+    const oy = feel?.oy ?? 0;
+    const x = GRID_X + b.gx * CELL + 2 + ox;
+    const y = GRID_Y + b.gy * CELL + 2 + oy;
     const w = b.gw * CELL - 4;
     const h = b.gh * CELL - 4;
     const d = defMap.get(b.defId)!;
@@ -87,6 +96,8 @@ export function drawPlay(ctx: CanvasRenderingContext2D, session: PlaySession, de
   ctx.fillStyle = "#9aa3ad";
   ctx.font = "13px system-ui";
   ctx.fillText(`Ball speed ×${session.ballSpeedMul.toFixed(2)}`, 16, 28);
+
+  ctx.restore();
 }
 
 export function drawIdleMessage(ctx: CanvasRenderingContext2D, message: string): void {

@@ -12,6 +12,13 @@ import {
   PADDLE_Y,
 } from "./constants";
 import { brickRect, circleRectResolve, clamp } from "./collide";
+import {
+  applyBrickHitFeel,
+  applyLaunchFeel,
+  applyPaddleFeel,
+  applyWallFeel,
+  updateGameFeel,
+} from "./gameFeel";
 import type { PlayCallbacks, PlaySession } from "./playTypes";
 
 export type { PlayCallbacks, PlaySession } from "./playTypes";
@@ -64,6 +71,8 @@ export function createPlaySession(layout: (string | null)[][], defs: Map<string,
     ballSpeedMul: 1,
     ballLaunched: false,
     launchTimer: 0.35,
+    screenShake: 0,
+    brickFeel: new WeakMap(),
   };
 }
 
@@ -77,6 +86,7 @@ export function launchBall(session: PlaySession, aimX: number): void {
   session.vel.x = nx * sp;
   session.vel.y = ny * sp;
   session.ballLaunched = true;
+  applyLaunchFeel(session);
 }
 
 function paddleReflect(session: PlaySession): void {
@@ -96,6 +106,7 @@ function paddleReflect(session: PlaySession): void {
   const s = Math.max(sp, BASE_BALL_SPEED * 0.85 * session.ballSpeedMul);
   session.vel.x = Math.sin(angle) * s;
   session.vel.y = -Math.cos(angle) * s;
+  applyPaddleFeel(session, session.vel.x, session.vel.y);
 }
 
 export function updatePlay(
@@ -127,13 +138,16 @@ export function updatePlay(
   if (ball.x < BALL_R) {
     ball.x = BALL_R;
     vel.x *= -1;
+    applyWallFeel(session, vel.x, vel.y);
   } else if (ball.x > CANVAS_W - BALL_R) {
     ball.x = CANVAS_W - BALL_R;
     vel.x *= -1;
+    applyWallFeel(session, vel.x, vel.y);
   }
   if (ball.y < BALL_R) {
     ball.y = BALL_R;
     vel.y *= -1;
+    applyWallFeel(session, vel.x, vel.y);
   }
 
   paddleReflect(session);
@@ -149,9 +163,12 @@ export function updatePlay(
     if (hit.hitX) vel.x *= -1;
     else vel.y *= -1;
 
+    applyBrickHitFeel(session, brick, ball.x, ball.y, vel.x, vel.y);
     handleBrickHit(brick, session, session.bricks, defs, callbacks, BASE_BALL_SPEED);
     break;
   }
+
+  updateGameFeel(session, dt);
 
   if (ball.y - BALL_R > CANVAS_H) return "lost";
   if (session.bricks.length === 0) return "cleared";
