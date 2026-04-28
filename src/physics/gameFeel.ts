@@ -13,6 +13,11 @@ const SPRING_K = 420;
 const SPRING_DAMP = 32;
 const MAX_OFFSET = 11;
 
+/** Strength of neighbor ripple relative to `baseImpulse` (connectivity wave). */
+const RIPPLE_GAIN = 0.46;
+/** Amplitude multiplier per BFS hop along touching bricks (edge-adjacent). */
+const RIPPLE_PER_HOP = 0.74;
+
 function brickCenterPx(b: BrickInstance) {
   const x = GRID_X + b.gx * CELL + (b.gw * CELL) / 2;
   const y = GRID_Y + b.gy * CELL + (b.gh * CELL) / 2;
@@ -31,6 +36,39 @@ export function getBrickFeel(session: PlaySession, brick: BrickInstance): BrickF
 function addImpulse(f: BrickFeel, ix: number, iy: number): void {
   f.vx += ix;
   f.vy += iy;
+}
+
+function brickOccupancyMap(bricks: readonly BrickInstance[]): Map<string, BrickInstance> {
+  const map = new Map<string, BrickInstance>();
+  for (const b of bricks) {
+    map.set(`${b.gx},${b.gy}`, b);
+  }
+  return map;
+}
+
+/** Edge-adjacent (4-neighbor) bricks reachable from `start`. */
+function connectedRippleDistances(start: BrickInstance, grid: Map<string, BrickInstance>): Map<BrickInstance, number> {
+  const dist = new Map<BrickInstance, number>();
+  const q: BrickInstance[] = [start];
+  dist.set(start, 0);
+  const dirs = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ] as const;
+
+  while (q.length) {
+    const b = q.shift()!;
+    const d = dist.get(b)!;
+    for (const [dx, dy] of dirs) {
+      const nb = grid.get(`${b.gx + dx},${b.gy + dy}`);
+      if (!nb || dist.has(nb)) continue;
+      dist.set(nb, d + 1);
+      q.push(nb);
+    }
+  }
+  return dist;
 }
 
 /** Global micro-wobble so the whole stack feels coupled. */
@@ -57,18 +95,22 @@ export function applyBrickHitFeel(
   // Direct hit — strongest kick along “push away from ball”.
   addImpulse(getBrickFeel(session, struck), dirX * baseImpulse * 1.45, dirY * baseImpulse * 1.45);
 
-  // Nearby + global ripple: every remaining brick gets a small impulse by distance from impact.
-  for (const b of session.bricks) {
-    if (b === struck) continue;
+  // Ripple through edge-connected bricks only: outward from impact center, weaker each hop.
+  const grid = brickOccupancyMap(session.bricks);
+  const ripple = connectedRippleDistances(struck, grid);
+
+  for (const [b, hops] of ripple) {
+    if (hops === 0) continue;
     const { x: cx, y: cy } = brickCenterPx(b);
-    const dx = cx - hitCx;
-    const dy = cy - hitCy;
-    const distCells = Math.hypot(dx, dy) / CELL;
-    const falloff = 1 / (1 + distCells * distCells * 0.28);
-    const nx = dx / (Math.hypot(dx, dy) || 1);
-    const ny = dy / (Math.hypot(dx, dy) || 1);
-    const mag = baseImpulse * 0.2 * falloff;
-    addImpulse(getBrickFeel(session, b), nx * mag, ny * mag);
+    let rdx = cx - hitCx;
+    let rdy = cy - hitCy;
+    const rlen = Math.hypot(rdx, rdy);
+    if (rlen < 1e-3) continue;
+    rdx /= rlen;
+    rdy /= rlen;
+    const hopDecay = Math.pow(RIPPLE_PER_HOP, hops);
+    const mag = baseImpulse * RIPPLE_GAIN * hopDecay;
+    addImpulse(getBrickFeel(session, b), rdx * mag, rdy * mag);
   }
 
   addSpeedScaledShake(session, speed, 0.0085, 4.8, 11);
